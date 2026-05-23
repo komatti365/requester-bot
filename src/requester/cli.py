@@ -11,14 +11,28 @@ def execute():
 
 
 def checkConfig():
-    config = AutoConfig(getcwd())
+    import os
+    from decouple import Config, RepositoryEnv
+    
+    _env_path = os.environ.get("REQBOT_ENV_PATH")
+    if _env_path:
+        config = Config(RepositoryEnv(_env_path))
+    else:
+        config = AutoConfig(os.getcwd())
+    
     configNames = (
         "REQBOT_DB_URI",
         "REQBOT_DB_KEY",
         "REQBOT_TOKEN",
         "REQBOT_WATCH_CHANNEL"
     )
-    configs = [config(configName, default=None) for configName in configNames]
+    configs = []
+    for configName in configNames:
+        val = config(configName, default=None)
+        if configName == "REQBOT_DB_KEY" and not val and os.environ.get("REQBOT_DB_KEY_FILE"):
+            val = "provided_by_file"
+        configs.append(val)
+        
     if None in configs:
         logger = logging.getLogger(__name__)
         logger.critical("初期設定が未完了です")

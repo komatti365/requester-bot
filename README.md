@@ -39,6 +39,7 @@ pip install https://github.com/nucosen/requester-bot/releases/latest/download/re
 Discordボットのトークン、および監視先チャンネルのチャンネルIDが必要です。
 
 パッケージのインストール先・カレントディレクトリのいずれかに`.env`ファイルを作成するか、システムの環境変数を設定します。
+また、環境変数 `REQBOT_ENV_PATH` にファイルのパスを設定することで、任意の場所にある `.env` ファイルを読み込むことも可能です。
 
 両方存在する場合は、環境変数を優先します。
 

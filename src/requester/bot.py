@@ -2,12 +2,16 @@
 
 import discord
 import logging
-from decouple import AutoConfig, UndefinedValueError
+from decouple import AutoConfig, Config, RepositoryEnv, UndefinedValueError
 from requests import post
 from .nicoVideo import NicoVideo
-from os import getcwd
+import os
 
-config = AutoConfig(getcwd())
+_env_path = os.environ.get("REQBOT_ENV_PATH")
+if _env_path:
+    config = Config(RepositoryEnv(_env_path))
+else:
+    config = AutoConfig(os.getcwd())
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -98,8 +102,17 @@ def postRequest(item: NicoVideo):
     Args:
         item (NicoVideo): NicoVideoオブジェクト
     """
+    # Get API key from file if specified, otherwise from config
+    db_key_file = os.environ.get("REQBOT_DB_KEY_FILE")
+    db_key = None
+    if db_key_file and os.path.exists(db_key_file):
+        with open(db_key_file, "r", encoding="utf-8") as f:
+            db_key = f.read().strip()
+    if not db_key:
+        db_key = config("REQBOT_DB_KEY", cast=str, default="")
+        
     headers = {
-        'x-apikey': config("REQBOT_DB_KEY", cast=str),
+        'x-apikey': db_key,
         'cache-control': "no-cache"
     }
     resp = post(

@@ -5,13 +5,16 @@ services:
     build: .
     image: requester-bot:latest
     restart: unless-stopped
-    env_file:
-      - .env
     environment:
-      - REQBOT_DB_URI
-      - REQBOT_DB_KEY
-      - REQBOT_TOKEN
-      - REQBOT_WATCH_CHANNEL
+      # コンテナ内で読み込む.envファイルのパスを指定します
+      - REQBOT_ENV_PATH=/app/config/.env
+      # 共有APIキーのパス
+      - REQBOT_DB_KEY_FILE=/secrets/shared_api_key.txt
+    volumes:
+      # ホスト側の.envファイルをコンテナ内に読み取り専用(ro)でマウントします
+      # 左側 (/path/to/your/host/.env) を実際の.envファイルのパスに変更してください
+      - /opt/selfdev/secret/requester.env:/app/config/.env:ro
+      - /opt/selfdev/secret:/secrets:ro
     logging:
       driver: json-file
       options:
