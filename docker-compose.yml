@@ -6,14 +6,13 @@ services:
     image: requester-bot:latest
     restart: unless-stopped
     env_file:
-      - .env
+      - ../.env
     environment:
-      - REQBOT_DB_URI
-      - REQBOT_DB_KEY
-      - REQBOT_TOKEN
-      - REQBOT_WATCH_CHANNEL
+      - REQBOT_DB_KEY_FILE=/secrets/db_key.txt
     logging:
       driver: json-file
       options:
         max-size: "10m"
         max-file: "3"
+    volumes:
+      - ../.env/secrets:/secrets:ro
