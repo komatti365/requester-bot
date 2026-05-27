@@ -16,6 +16,8 @@ class NicoVideo:
     title: Optional[str] = None
     watchUrl: Optional[str] = None
     thumbnailUrl: Optional[str] = None
+    lengthSeconds: Optional[int] = None
+    tags: Optional[list[str]] = None
 
     def __post_init__(self):
         matched = self.idPattern.search(self.id)
@@ -30,11 +32,18 @@ class NicoVideo:
             return
 
         # NOTE - thumbInfoTree.find(x) MUST NOT be None.
-        self.title, self.watchUrl, self.thumbnailUrl = \
+        self.title, self.watchUrl, self.thumbnailUrl, length_text = \
             [
                 thumbInfoTree.find(path).text for path in  # type: ignore \
-                (".//title", ".//watch_url", ".//thumbnail_url")
+                (".//title", ".//watch_url", ".//thumbnail_url", ".//length")
             ]
+            
+        if length_text:
+            parts = length_text.split(":")
+            if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
+                self.lengthSeconds = int(parts[0]) * 60 + int(parts[1])
+                
+        self.tags = [tag.text for tag in thumbInfoTree.findall(".//tag") if tag.text]
 
     def __str__(self) -> str:
         return self.id
