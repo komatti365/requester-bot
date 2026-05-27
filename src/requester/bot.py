@@ -66,6 +66,15 @@ async def on_message(message: discord.Message):
             if video.id != "sm0":
                 await message.add_reaction("\u2754")
             return
+            
+        # DBから設定を取得し、条件を検証する
+        settings = getSettings()
+        is_valid, reason = isValidRequest(video, settings)
+        if not is_valid:
+            # 条件に合わない場合は理由をリプライして終了
+            await message.reply(f"⚠️ リクエストを受け付けられませんでした。\n理由: {reason}")
+            return
+
         postRequest(video)
         successEmbed = getSuccessEmbed(
             videoTitle=video.title or "（タイトル不明）",
@@ -90,6 +99,76 @@ def getSuccessEmbed(videoTitle: str, watchUrl: str, thumbnailUrl: str) -> discor
     result.set_footer(text="Powered by NUCOSen")
     return result
 
+def getSettings() -> dict:
+    """DBのAPIから設定を取得する"""
+    try:
+        db_uri = config("REQBOT_DB_URI", cast=str)
+        if db_uri.endswith("/requests"):
+            settings_uri = db_uri[:-9] + "/config"
+        else:
+            settings_uri = db_uri + "/config"
+    except UndefinedValueError:
+        return {}
+        
+    db_key_file = os.environ.get("REQBOT_DB_KEY_FILE")
+    db_key = None
+    if db_key_file and os.path.exists(db_key_file):
+        with open(db_key_file, "r", encoding="utf-8") as f:
+            db_key = f.read().strip()
+    if not db_key:
+        db_key = config("REQBOT_DB_KEY", cast=str, default="")
+        
+    headers = {
+        'x-apikey': db_key,
+        'cache-control': "no-cache"
+    }
+    
+    try:
+        from requests import get
+        resp = get(url=settings_uri, headers=headers, timeout=10)
+        resp.raise_for_status()
+        
+        documents = resp.json()
+        settings = {}
+        # JSONの構造が [{"key": "HOGE", "value": "FUGA"}] のような形を想定
+        if isinstance(documents, list):
+            for doc in documents:
+                if "key" in doc and "value" in doc and doc["value"] is not None:
+                    settings[doc["key"]] = str(doc["value"])
+        return settings
+    except Exception as e:
+        logger = logging.getLogger(__name__)
+        logger.error(f"DBからの設定取得に失敗しました: {e}")
+        return {}
+
+def isValidRequest(video: NicoVideo, settings: dict) -> tuple[bool, str]:
+    """リクエストされた動画が条件を満たしているか検証する"""
+    min_duration = int(settings.get("MIN_ALLOWABLE_DURATION", 45))
+    max_duration = int(settings.get("MAX_ALLOWABLE_DURATION", 600))
+    
+    if video.lengthSeconds is not None:
+        if video.lengthSeconds < min_duration:
+            return False, f"動画が短すぎます（{min_duration}秒以上が必要です）"
+        if video.lengthSeconds > max_duration:
+            return False, f"動画が長すぎます（{max_duration}秒以下が必要です）"
+            
+    ng_videos = set(filter(None, settings.get("NG_VIDEO_IDS", "").split(",")))
+    if video.id in ng_videos:
+        return False, "この動画はリクエストが禁止されています。"
+        
+    video_tags = set(video.tags) if video.tags else set()
+    
+    ng_tags = set(filter(None, settings.get("NG_TAGS", "").split(",")))
+    if len(ng_tags & video_tags) > 0:
+        return False, "NGタグが含まれているためリクエストできません。"
+        
+    req_tags_str = settings.get("REQTAGS", "")
+    if req_tags_str:
+        req_tags = set(filter(None, req_tags_str.split(",")))
+        if req_tags and not (req_tags & video_tags):
+            return False, f"リクエストに必要なタグ（{req_tags_str}）が含まれていません。"
+            
+    return True, ""
 
 def startDiscordBot():
     DISCORD_TOKEN = config("REQBOT_TOKEN")
