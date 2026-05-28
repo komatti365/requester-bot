@@ -23,7 +23,7 @@ class NicoVideo:
 
         infoXml = get(self.infoApiPrefix + self.id, timeout=60)
         infoXml.raise_for_status()
-        thumbInfoTree = ET.fromstring(infoXml.text)
+        thumbInfoTree = ET.fromstring(infoXml.content)
 
         self.isExists = bool(thumbInfoTree.get("status") == "ok")
         if not self.isExists:

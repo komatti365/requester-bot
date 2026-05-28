@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import sys
 try:
     sys.path.append("~/../src")
@@ -62,3 +63,10 @@ def test_thumbnailUrl():
         assert video.thumbnailUrl == "https://nicovideo.cdn.nimg.jp/thumbnails/9/9"
     for video in invalidVideos + deletedVideos:
         assert video.thumbnailUrl == None
+
+
+def test_genre():
+    for video in validVideos:
+        assert video.genre == "未設定"
+    for video in invalidVideos + deletedVideos:
+        assert video.genre == None
