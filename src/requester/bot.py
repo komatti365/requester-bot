@@ -118,7 +118,11 @@ def postRequest(item: NicoVideo):
     resp = post(
         # NOTE - Url MUST be str.
         url=config("REQBOT_DB_URI", cast=str),  # type: ignore
-        json={"videoId": str(item)}, headers=headers,
+        json={
+            "videoId": str(item),
+            "title": item.title,
+            "thumbnailUrl": item.thumbnailUrl
+        }, headers=headers,
         timeout=60
     )
     resp.raise_for_status()
@@ -232,29 +236,12 @@ async def queue_cmd(ctx: discord.ApplicationContext):
             await ctx.respond("🎵 現在キューは空です。リクエストを送ってみましょう！")
             return
             
-        # キャッシュから動画タイトルを取得
-        video_ids = [item["videoId"] for item in queues if "videoId" in item]
-        cache_uri = queue_uri[:-6] + "/video_info_cache" if queue_uri.endswith("/queue") else queue_uri + "/video_info_cache"
-        
-        title_map = {}
-        if video_ids:
-            try:
-                import json
-                cache_query = '?q={"videoId":{"$in":' + json.dumps(list(set(video_ids))) + '}}'
-                cache_resp = await asyncio.to_thread(get, url=cache_uri + cache_query, headers=headers, timeout=10)
-                if cache_resp.status_code == 200:
-                    cached_items = cache_resp.json()
-                    for c_item in cached_items:
-                        title_map[c_item["videoId"]] = c_item.get("title", "（タイトル不明）")
-            except Exception as ce:
-                logging.getLogger(__name__).warning(f"Failed to fetch metadata cache in Discord bot: {ce}")
-                
         embed = discord.Embed(title="📋 待機中のキュー一覧", color=discord.Color.green())
         
         description_lines = []
         for index, item in enumerate(queues):
             video_id = item["videoId"]
-            title = title_map.get(video_id, video_id)
+            title = item.get("title", video_id)
             if len(title) > 40:
                 title = title[:40] + "..."
             priority_str = "⭐ [優先] " if item.get("priority") else ""
