@@ -18,6 +18,7 @@ class NicoVideo:
     thumbnailUrl: Optional[str] = None
     lengthSeconds: Optional[int] = None
     tags: Optional[list[str]] = None
+    genre: Optional[str] = None
 
     def __post_init__(self):
         matched = self.idPattern.search(self.id)
@@ -25,7 +26,7 @@ class NicoVideo:
 
         infoXml = get(self.infoApiPrefix + self.id, timeout=60)
         infoXml.raise_for_status()
-        thumbInfoTree = ET.fromstring(infoXml.text)
+        thumbInfoTree = ET.fromstring(infoXml.content)
 
         self.isExists = bool(thumbInfoTree.get("status") == "ok")
         if not self.isExists:
@@ -37,6 +38,9 @@ class NicoVideo:
                 thumbInfoTree.find(path).text for path in  # type: ignore \
                 (".//title", ".//watch_url", ".//thumbnail_url", ".//length")
             ]
+            
+        genre_elem = thumbInfoTree.find(".//genre")
+        self.genre = genre_elem.text if genre_elem is not None else None
             
         if length_text:
             parts = length_text.split(":")

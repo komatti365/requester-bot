@@ -156,17 +156,59 @@ def isValidRequest(video: NicoVideo, settings: dict) -> tuple[bool, str]:
     if video.id in ng_videos:
         return False, "この動画はリクエストが禁止されています。"
         
-    video_tags = set(video.tags) if video.tags else set()
+    video_tags = [t.strip() for t in video.tags] if video.tags else []
+    video_tags_set = set(video_tags)
     
-    ng_tags = set(filter(None, settings.get("NG_TAGS", "").split(",")))
-    if len(ng_tags & video_tags) > 0:
+    # 1. NG_TAGS_EXACT (完全一致NG)
+    ng_tags_exact = set(filter(None, [t.strip() for t in settings.get("NG_TAGS_EXACT", "").split(",")]))
+    if len(ng_tags_exact & video_tags_set) > 0:
         return False, "NGタグが含まれているためリクエストできません。"
         
+    # 2. NG_TAGS (部分一致NG)
+    ng_tags = [t.strip() for t in settings.get("NG_TAGS", "").split(",") if t.strip()]
+    for ng_tag in ng_tags:
+        for tag in video_tags:
+            if ng_tag in tag:
+                return False, f"NGタグ「{ng_tag}」が含まれているためリクエストできません。"
+
+    # 3. REQTAGS_EXACT (完全一致必須)
+    req_tags_exact_str = settings.get("REQTAGS_EXACT", "")
+    if req_tags_exact_str:
+        req_tags_exact = set(filter(None, [t.strip() for t in req_tags_exact_str.split(",")]))
+        if req_tags_exact and not (req_tags_exact & video_tags_set):
+            return False, f"リクエストに必要なタグ（{req_tags_exact_str}）が含まれていません。"
+
+    # 4. REQTAGS (部分一致必須)
     req_tags_str = settings.get("REQTAGS", "")
     if req_tags_str:
-        req_tags = set(filter(None, req_tags_str.split(",")))
-        if req_tags and not (req_tags & video_tags):
-            return False, f"リクエストに必要なタグ（{req_tags_str}）が含まれていません。"
+        req_tags = [t.strip() for t in req_tags_str.split(",") if t.strip()]
+        if req_tags:
+            matched = False
+            for req_tag in req_tags:
+                for tag in video_tags:
+                    if req_tag in tag:
+                        matched = True
+                        break
+                if matched:
+                    break
+            if not matched:
+                return False, f"リクエストに必要なタグ（{req_tags_str}）が含まれていません。"
+            
+    # 5. ジャンルチェック (GENRE_TAGS)
+    genre_tags_str = settings.get("GENRE_TAGS", "")
+    if genre_tags_str:
+        allowed_genres = [g.strip() for g in genre_tags_str.split(",") if g.strip()]
+        if allowed_genres:
+            genre_matched = False
+            if video.genre:
+                video_genre_clean = video.genre.strip()
+                for allowed_genre in allowed_genres:
+                    if allowed_genre in video_genre_clean or video_genre_clean in allowed_genre:
+                        genre_matched = True
+                        break
+            if not genre_matched:
+                actual_genre = video.genre or "（なし）"
+                return False, f"この動画のジャンル（{actual_genre}）はリクエスト対象外です。"
             
     return True, ""
 
