@@ -234,8 +234,9 @@ async def nowplaying_cmd(interaction: discord.Interaction):
     }
     
     try:
+        import asyncio
         from requests import get
-        resp = get(url=nowplaying_uri, headers=headers, timeout=10)
+        resp = await asyncio.to_thread(get, url=nowplaying_uri, headers=headers, timeout=10)
         resp.raise_for_status()
         data = resp.json()
         
