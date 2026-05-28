@@ -16,8 +16,7 @@ else:
 intents = discord.Intents.default()
 intents.message_content = True
 
-client = discord.Client(intents=intents)
-tree = discord.app_commands.CommandTree(client)
+client = discord.Bot(intents=intents)
 
 
 # SECTION - イベント定義
@@ -38,12 +37,6 @@ async def on_ready():
 
     for l in logo:
         logger.info(l)
-
-    try:
-        synced = await tree.sync()
-        logger.info(f"Successfully synced {len(synced)} application command(s) globally.")
-    except Exception as e:
-        logger.error(f"Failed to sync application commands: {e}")
 
 
 @client.event
@@ -133,8 +126,8 @@ def postRequest(item: NicoVideo):
 
 # SECTION - スラッシュコマンド定義
 
-@tree.command(name="nowplaying", description="現在放送中の動画を表示します")
-async def nowplaying_cmd(interaction: discord.Interaction):
+@client.slash_command(name="nowplaying", description="現在放送中の動画を表示します")
+async def nowplaying_cmd(ctx: discord.ApplicationContext):
     db_uri = config("REQBOT_DB_URI", cast=str)
     if db_uri.endswith("/requests"):
         nowplaying_uri = db_uri[:-9] + "/nowplaying"
@@ -168,7 +161,7 @@ async def nowplaying_cmd(interaction: discord.Interaction):
             item = data
             
         if not item or not item.get("videoId"):
-            await interaction.response.send_message("🎵 現在放送中の曲はありません。", ephemeral=True)
+            await ctx.respond("🎵 現在放送中の曲はありません。", ephemeral=True)
             return
             
         video_id = item["videoId"]
@@ -200,14 +193,14 @@ async def nowplaying_cmd(interaction: discord.Interaction):
             embed.description = f"動画ID: {video_id}"
             
         embed.set_footer(text="Powered by NUCOSen")
-        await interaction.response.send_message(embed=embed)
+        await ctx.respond(embed=embed)
     except Exception as e:
         logging.getLogger(__name__).error(f"Failed to fetch nowplaying: {e}")
-        await interaction.response.send_message("⚠️ 現在の再生情報の取得に失敗しました。", ephemeral=True)
+        await ctx.respond("⚠️ 現在の再生情報の取得に失敗しました。", ephemeral=True)
 
 
-@tree.command(name="queue", description="待機中のキュー一覧を表示します")
-async def queue_cmd(interaction: discord.Interaction):
+@client.slash_command(name="queue", description="待機中のキュー一覧を表示します")
+async def queue_cmd(ctx: discord.ApplicationContext):
     db_uri = config("REQBOT_DB_URI", cast=str)
     if db_uri.endswith("/requests"):
         queue_uri = db_uri[:-9] + "/queue"
@@ -236,7 +229,7 @@ async def queue_cmd(interaction: discord.Interaction):
         queues = resp.json()
         
         if not queues:
-            await interaction.response.send_message("🎵 現在キューは空です。リクエストを送ってみましょう！")
+            await ctx.respond("🎵 現在キューは空です。リクエストを送ってみましょう！")
             return
             
         embed = discord.Embed(title="📋 待機中のキュー一覧", color=discord.Color.green())
@@ -249,7 +242,7 @@ async def queue_cmd(interaction: discord.Interaction):
             
         embed.description = "\n".join(description_lines)
         embed.set_footer(text=f"合計 {len(queues)} 件の待機曲があります。")
-        await interaction.response.send_message(embed=embed)
+        await ctx.respond(embed=embed)
     except Exception as e:
         logging.getLogger(__name__).error(f"Failed to fetch queue: {e}")
-        await interaction.response.send_message("⚠️ キュー情報の取得に失敗しました。", ephemeral=True)
+        await ctx.respond("⚠️ キュー情報の取得に失敗しました。", ephemeral=True)
