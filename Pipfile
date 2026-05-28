@@ -10,7 +10,7 @@ async-timeout = "==4.0.3"
 attrs = "==23.1.0"
 certifi = "==2026.5.20"
 charset-normalizer = "==3.3.2"
-"discord.py" = "==2.3.2"
+"py-cord" = "*"
 frozenlist = "==1.4.0"
 idna = "==3.15"
 multidict = "==6.0.4"
@@ -19,6 +19,7 @@ requests = "==2.33.0"
 urllib3 = "==2.7.0"
 yarl = "==1.9.4"
 defusedxml = "*"
+py-cord = {git = "https://github.com/Pycord-Development/pycord"}
 
 [dev-packages]
 pytest = "*"
