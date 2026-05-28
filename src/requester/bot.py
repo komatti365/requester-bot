@@ -307,9 +307,10 @@ async def queue_cmd(interaction: discord.Interaction):
     }
     
     try:
+        import asyncio
         from requests import get
-        query = '?h={"$orderby": {"priority": -1, "_id": 1}}&max=10'
-        resp = get(url=queue_uri + query, headers=headers, timeout=10)
+        query = '?h={\"\$orderby\": {\"priority\": -1, \"_id\": 1}}&max=10'
+        resp = await asyncio.to_thread(get, url=queue_uri + query, headers=headers, timeout=10)
         resp.raise_for_status()
         queues = resp.json()
         
