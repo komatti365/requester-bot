@@ -90,6 +90,142 @@ def getSuccessEmbed(videoTitle: str, watchUrl: str, thumbnailUrl: str) -> discor
     result.set_footer(text="Powered by NUCOSen")
     return result
 
+def getSettings() -> dict:
+    """DBのAPIから設定を取得する"""
+    try:
+        settings_uri = config("REQBOT_SETTINGS_URI", default="")
+        if not settings_uri:
+            settings_uri = config("SETTINGS_URL", default="")
+            
+        if not settings_uri:
+            db_uri = config("REQBOT_DB_URI", cast=str)
+            if db_uri.endswith("/requests"):
+                settings_uri = db_uri[:-9] + "/config"
+            else:
+                settings_uri = db_uri + "/config"
+    except UndefinedValueError:
+        return {}
+        
+    db_key_file = os.environ.get("REQBOT_DB_KEY_FILE")
+    db_key = None
+    if db_key_file and os.path.exists(db_key_file):
+        with open(db_key_file, "r", encoding="utf-8") as f:
+            db_key = f.read().strip()
+    if not db_key:
+        db_key = config("REQBOT_DB_KEY", cast=str, default="")
+        
+    headers = {
+        'x-apikey': db_key,
+        'cache-control': "no-cache"
+    }
+    
+    try:
+        resp = get(url=settings_uri, headers=headers, timeout=10)
+        resp.raise_for_status()
+        
+        documents = resp.json()
+        settings = {}
+        # JSONの構造が [{"key": "HOGE", "value": "FUGA"}] のような形を想定
+        if isinstance(documents, list):
+            for doc in documents:
+                if "key" in doc and "value" in doc and doc["value"] is not None:
+                    settings[doc["key"]] = str(doc["value"])
+        return settings
+    except Exception as e:
+        logger = logging.getLogger(__name__)
+        logger.error(f"DBからの設定取得に失敗しました: {e}")
+        return {}
+
+def isValidRequest(video: NicoVideo, settings: dict) -> tuple[bool, str]:
+    """リクエストされた動画が条件を満たしているか検証する"""
+    def get_setting(key: str, default_val: str = "") -> str:
+        # 設定エンドポイント(settings)からの最新の設定を最優先し、無ければ環境変数(config)から取得する
+        val = settings.get(key)
+        if val is not None and val != "":
+            return str(val)
+        try:
+            return str(config(key, default=default_val))
+        except Exception:
+            return default_val
+
+    try:
+        min_duration = int(get_setting("MIN_ALLOWABLE_DURATION", "45"))
+    except ValueError:
+        min_duration = 45
+
+    try:
+        max_duration = int(get_setting("MAX_ALLOWABLE_DURATION", "600"))
+    except ValueError:
+        max_duration = 600
+    
+    length_seconds = getattr(video, "lengthSeconds", None)
+    if length_seconds is not None:
+        if length_seconds < min_duration:
+            return False, f"動画が短すぎます（{min_duration}秒以上が必要です）"
+        if length_seconds > max_duration:
+            return False, f"動画が長すぎます（{max_duration}秒以下が必要です）"
+            
+    ng_videos = set(filter(None, get_setting("NG_VIDEO_IDS").split(",")))
+    if video.id in ng_videos:
+        return False, "この動画はリクエストが禁止されています。"
+        
+    video_tags_attr = getattr(video, "tags", None)
+    video_tags = [t.strip() for t in video_tags_attr] if video_tags_attr else []
+    video_tags_set = set(video_tags)
+    
+    # 1. NG_TAGS_EXACT (完全一致NG)
+    ng_tags_exact = set(filter(None, [t.strip() for t in get_setting("NG_TAGS_EXACT").split(",")]))
+    if len(ng_tags_exact & video_tags_set) > 0:
+        return False, "NGタグが含まれているためリクエストできません。"
+        
+    # 2. NG_TAGS (部分一致NG)
+    ng_tags = [t.strip() for t in get_setting("NG_TAGS").split(",") if t.strip()]
+    for ng_tag in ng_tags:
+        for tag in video_tags:
+            if ng_tag in tag:
+                return False, f"NGタグ「{ng_tag}」が含まれているためリクエストできません。"
+
+    # 3. REQTAGS_EXACT (完全一致必須)
+    req_tags_exact_str = get_setting("REQTAGS_EXACT")
+    if req_tags_exact_str:
+        req_tags_exact = set(filter(None, [t.strip() for t in req_tags_exact_str.split(",")]))
+        if req_tags_exact and not (req_tags_exact & video_tags_set):
+            return False, f"リクエストに必要なタグ（{req_tags_exact_str}）が含まれていません。"
+
+    # 4. REQTAGS (部分一致必須)
+    req_tags_str = get_setting("REQTAGS")
+    if req_tags_str:
+        req_tags = [t.strip() for t in req_tags_str.split(",") if t.strip()]
+        if req_tags:
+            matched = False
+            for req_tag in req_tags:
+                for tag in video_tags:
+                    if req_tag in tag:
+                        matched = True
+                        break
+                if matched:
+                    break
+            if not matched:
+                return False, f"リクエストに必要なタグ（{req_tags_str}）が含まれていません。"
+            
+    # 5. ジャンルチェック (GENRE_TAGS)
+    genre_tags_str = get_setting("GENRE_TAGS")
+    if genre_tags_str:
+        allowed_genres = [g.strip() for g in genre_tags_str.split(",") if g.strip()]
+        if allowed_genres:
+            genre_matched = False
+            video_genre = getattr(video, "genre", None)
+            if video_genre:
+                video_genre_clean = video_genre.strip()
+                for allowed_genre in allowed_genres:
+                    if allowed_genre in video_genre_clean or video_genre_clean in allowed_genre:
+                        genre_matched = True
+                        break
+            if not genre_matched:
+                actual_genre = video_genre or "（なし）"
+                return False, f"この動画のジャンル（{actual_genre}）はリクエスト対象外です。"
+            
+    return True, ""
 
 def startDiscordBot():
     DISCORD_TOKEN = config("REQBOT_TOKEN")
