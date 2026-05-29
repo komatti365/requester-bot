@@ -148,8 +148,15 @@ def isValidRequest(video: NicoVideo, settings: dict) -> tuple[bool, str]:
         except Exception:
             return default_val
 
-    min_duration = int(get_setting("MIN_ALLOWABLE_DURATION", "45"))
-    max_duration = int(get_setting("MAX_ALLOWABLE_DURATION", "600"))
+    try:
+        min_duration = int(get_setting("MIN_ALLOWABLE_DURATION", "45"))
+    except ValueError:
+        min_duration = 45
+
+    try:
+        max_duration = int(get_setting("MAX_ALLOWABLE_DURATION", "600"))
+    except ValueError:
+        max_duration = 600
     
     length_seconds = getattr(video, "lengthSeconds", None)
     if length_seconds is not None:
