@@ -207,14 +207,15 @@ def isValidRequest(video: NicoVideo, settings: dict) -> tuple[bool, str]:
         allowed_genres = [g.strip() for g in genre_tags_str.split(",") if g.strip()]
         if allowed_genres:
             genre_matched = False
-            if video.genre:
-                video_genre_clean = video.genre.strip()
+            video_genre = getattr(video, "genre", None)
+            if video_genre:
+                video_genre_clean = video_genre.strip()
                 for allowed_genre in allowed_genres:
                     if allowed_genre in video_genre_clean or video_genre_clean in allowed_genre:
                         genre_matched = True
                         break
             if not genre_matched:
-                actual_genre = video.genre or "（なし）"
+                actual_genre = video_genre or "（なし）"
                 return False, f"この動画のジャンル（{actual_genre}）はリクエスト対象外です。"
             
     return True, ""
