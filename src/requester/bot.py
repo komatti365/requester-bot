@@ -162,7 +162,8 @@ def isValidRequest(video: NicoVideo, settings: dict) -> tuple[bool, str]:
     if video.id in ng_videos:
         return False, "この動画はリクエストが禁止されています。"
         
-    video_tags = [t.strip() for t in video.tags] if video.tags else []
+    video_tags_attr = getattr(video, "tags", None)
+    video_tags = [t.strip() for t in video_tags_attr] if video_tags_attr else []
     video_tags_set = set(video_tags)
     
     # 1. NG_TAGS_EXACT (完全一致NG)
