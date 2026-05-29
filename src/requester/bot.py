@@ -120,7 +120,6 @@ def getSettings() -> dict:
     }
     
     try:
-        from requests import get
         resp = get(url=settings_uri, headers=headers, timeout=10)
         resp.raise_for_status()
         
