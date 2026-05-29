@@ -102,11 +102,16 @@ def getSuccessEmbed(videoTitle: str, watchUrl: str, thumbnailUrl: str) -> discor
 def getSettings() -> dict:
     """DBのAPIから設定を取得する"""
     try:
-        db_uri = config("REQBOT_DB_URI", cast=str)
-        if db_uri.endswith("/requests"):
-            settings_uri = db_uri[:-9] + "/config"
-        else:
-            settings_uri = db_uri + "/config"
+        settings_uri = config("REQBOT_SETTINGS_URI", default="")
+        if not settings_uri:
+            settings_uri = config("SETTINGS_URL", default="")
+            
+        if not settings_uri:
+            db_uri = config("REQBOT_DB_URI", cast=str)
+            if db_uri.endswith("/requests"):
+                settings_uri = db_uri[:-9] + "/config"
+            else:
+                settings_uri = db_uri + "/config"
     except UndefinedValueError:
         return {}
         
@@ -143,8 +148,18 @@ def getSettings() -> dict:
 
 def isValidRequest(video: NicoVideo, settings: dict) -> tuple[bool, str]:
     """リクエストされた動画が条件を満たしているか検証する"""
-    min_duration = int(settings.get("MIN_ALLOWABLE_DURATION", 45))
-    max_duration = int(settings.get("MAX_ALLOWABLE_DURATION", 600))
+    def get_setting(key: str, default_val: str = "") -> str:
+        # 設定エンドポイント(settings)からの最新の設定を最優先し、無ければ環境変数(config)から取得する
+        val = settings.get(key)
+        if val is not None and val != "":
+            return str(val)
+        try:
+            return str(config(key, default=default_val))
+        except Exception:
+            return default_val
+
+    min_duration = int(get_setting("MIN_ALLOWABLE_DURATION", "45"))
+    max_duration = int(get_setting("MAX_ALLOWABLE_DURATION", "600"))
     
     if video.lengthSeconds is not None:
         if video.lengthSeconds < min_duration:
@@ -152,7 +167,7 @@ def isValidRequest(video: NicoVideo, settings: dict) -> tuple[bool, str]:
         if video.lengthSeconds > max_duration:
             return False, f"動画が長すぎます（{max_duration}秒以下が必要です）"
             
-    ng_videos = set(filter(None, settings.get("NG_VIDEO_IDS", "").split(",")))
+    ng_videos = set(filter(None, get_setting("NG_VIDEO_IDS").split(",")))
     if video.id in ng_videos:
         return False, "この動画はリクエストが禁止されています。"
         
@@ -160,26 +175,26 @@ def isValidRequest(video: NicoVideo, settings: dict) -> tuple[bool, str]:
     video_tags_set = set(video_tags)
     
     # 1. NG_TAGS_EXACT (完全一致NG)
-    ng_tags_exact = set(filter(None, [t.strip() for t in settings.get("NG_TAGS_EXACT", "").split(",")]))
+    ng_tags_exact = set(filter(None, [t.strip() for t in get_setting("NG_TAGS_EXACT").split(",")]))
     if len(ng_tags_exact & video_tags_set) > 0:
         return False, "NGタグが含まれているためリクエストできません。"
         
     # 2. NG_TAGS (部分一致NG)
-    ng_tags = [t.strip() for t in settings.get("NG_TAGS", "").split(",") if t.strip()]
+    ng_tags = [t.strip() for t in get_setting("NG_TAGS").split(",") if t.strip()]
     for ng_tag in ng_tags:
         for tag in video_tags:
             if ng_tag in tag:
                 return False, f"NGタグ「{ng_tag}」が含まれているためリクエストできません。"
 
     # 3. REQTAGS_EXACT (完全一致必須)
-    req_tags_exact_str = settings.get("REQTAGS_EXACT", "")
+    req_tags_exact_str = get_setting("REQTAGS_EXACT")
     if req_tags_exact_str:
         req_tags_exact = set(filter(None, [t.strip() for t in req_tags_exact_str.split(",")]))
         if req_tags_exact and not (req_tags_exact & video_tags_set):
             return False, f"リクエストに必要なタグ（{req_tags_exact_str}）が含まれていません。"
 
     # 4. REQTAGS (部分一致必須)
-    req_tags_str = settings.get("REQTAGS", "")
+    req_tags_str = get_setting("REQTAGS")
     if req_tags_str:
         req_tags = [t.strip() for t in req_tags_str.split(",") if t.strip()]
         if req_tags:
@@ -195,7 +210,7 @@ def isValidRequest(video: NicoVideo, settings: dict) -> tuple[bool, str]:
                 return False, f"リクエストに必要なタグ（{req_tags_str}）が含まれていません。"
             
     # 5. ジャンルチェック (GENRE_TAGS)
-    genre_tags_str = settings.get("GENRE_TAGS", "")
+    genre_tags_str = get_setting("GENRE_TAGS")
     if genre_tags_str:
         allowed_genres = [g.strip() for g in genre_tags_str.split(",") if g.strip()]
         if allowed_genres:
