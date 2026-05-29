@@ -3,7 +3,7 @@
 import discord
 import logging
 from decouple import AutoConfig, Config, RepositoryEnv, UndefinedValueError
-from requests import post
+from requests import get, post
 from .nicoVideo import NicoVideo
 import os
 
@@ -66,6 +66,15 @@ async def on_message(message: discord.Message):
             if video.id != "sm0":
                 await message.add_reaction("\u2754")
             return
+            
+        # DBから設定を取得し、条件を検証する
+        settings = getSettings()
+        is_valid, reason = isValidRequest(video, settings)
+        if not is_valid:
+            # 条件に合わない場合は理由をリプライして終了
+            await message.reply(f"⚠️ リクエストを受け付けられませんでした。\n理由: {reason}")
+            return
+
         postRequest(video)
         successEmbed = getSuccessEmbed(
             videoTitle=video.title or "（タイトル不明）",
