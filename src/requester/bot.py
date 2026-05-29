@@ -35,8 +35,8 @@ async def on_ready():
     |  \ |___ |_\|    |__] |__|  |
     """.splitlines()
 
-    for l in logo:
-        logger.info(l)
+    for line in logo:
+        logger.info(line)
 
 
 @client.event

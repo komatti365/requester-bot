@@ -1,6 +1,5 @@
 import logging
 from requester import bot
-from os import getcwd
 from decouple import AutoConfig
 import sys
 
