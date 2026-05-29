@@ -48,25 +48,25 @@ def test_title():
     for video in validVideos:
         assert video.title == "新・豪血寺一族 -煩悩解放 - レッツゴー！陰陽師"
     for video in invalidVideos + deletedVideos:
-        assert video.title == None
+        assert video.title is None
 
 
 def test_watchUrl():
     for video in validVideos:
         assert video.watchUrl == "https://www.nicovideo.jp/watch/sm9"
     for video in invalidVideos + deletedVideos:
-        assert video.watchUrl == None
+        assert video.watchUrl is None
 
 
 def test_thumbnailUrl():
     for video in validVideos:
         assert video.thumbnailUrl == "https://nicovideo.cdn.nimg.jp/thumbnails/9/9"
     for video in invalidVideos + deletedVideos:
-        assert video.thumbnailUrl == None
+        assert video.thumbnailUrl is None
 
 
 def test_genre():
     for video in validVideos:
         assert video.genre == "未設定"
     for video in invalidVideos + deletedVideos:
-        assert video.genre == None
+        assert video.genre is None
