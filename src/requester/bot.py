@@ -151,10 +151,11 @@ def isValidRequest(video: NicoVideo, settings: dict) -> tuple[bool, str]:
     min_duration = int(get_setting("MIN_ALLOWABLE_DURATION", "45"))
     max_duration = int(get_setting("MAX_ALLOWABLE_DURATION", "600"))
     
-    if video.lengthSeconds is not None:
-        if video.lengthSeconds < min_duration:
+    length_seconds = getattr(video, "lengthSeconds", None)
+    if length_seconds is not None:
+        if length_seconds < min_duration:
             return False, f"動画が短すぎます（{min_duration}秒以上が必要です）"
-        if video.lengthSeconds > max_duration:
+        if length_seconds > max_duration:
             return False, f"動画が長すぎます（{max_duration}秒以下が必要です）"
             
     ng_videos = set(filter(None, get_setting("NG_VIDEO_IDS").split(",")))
