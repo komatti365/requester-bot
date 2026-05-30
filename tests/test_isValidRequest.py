@@ -3,7 +3,10 @@ import sys
 from unittest.mock import MagicMock
 
 # discordモジュールをモックしてインポートエラーを回避する
-sys.modules["discord"] = MagicMock()
+discord_mock = MagicMock()
+sys.modules["discord"] = discord_mock
+sys.modules["discord.ext"] = MagicMock()
+sys.modules["discord.ext.tasks"] = MagicMock()
 
 try:
     sys.path.append("~/../src")
