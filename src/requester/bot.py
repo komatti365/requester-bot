@@ -2,12 +2,15 @@
 
 import discord
 import logging
+import asyncio
 from decouple import AutoConfig, Config, RepositoryEnv, UndefinedValueError
 from requests import get, post
 from .nicoVideo import NicoVideo
 import os
 import time
 from discord.ext import tasks
+
+logger = logging.getLogger(__name__)
 
 
 _env_path = os.environ.get("REQBOT_ENV_PATH")
@@ -27,7 +30,6 @@ client = discord.Bot(intents=intents)
 
 @client.event
 async def on_ready():
-    logger = logging.getLogger(__name__)
     logger.info(f'We have logged in as {client.user}')
     logo = r"""
     _  _ _  _ ____ ____ ____ ____ _  _
@@ -147,7 +149,6 @@ def getSettings() -> dict:
                     settings[doc["key"]] = str(doc["value"])
         return settings
     except Exception as e:
-        logger = logging.getLogger(__name__)
         logger.error(f"DBからの設定取得に失敗しました: {e}")
         return {}
 
@@ -301,7 +302,6 @@ async def fetch_nowplaying() -> dict | None:
     }
     
     try:
-        import asyncio
         from requests import get as sync_get
         resp = await asyncio.to_thread(sync_get, url=nowplaying_uri, headers=headers, timeout=10)
         resp.raise_for_status()
@@ -309,23 +309,36 @@ async def fetch_nowplaying() -> dict | None:
         
         item = None
         if isinstance(data, list) and len(data) > 0:
-            item = data[0]
+            first_element = data[0]
+            if isinstance(first_element, dict):
+                item = first_element
         elif isinstance(data, dict) and data:
             item = data
         return item
     except Exception as e:
-        logging.getLogger(__name__).error(f"Failed to fetch nowplaying: {e}")
+        logger.error(f"Failed to fetch nowplaying: {e}")
         return None
+
+
+_last_video_id = None
 
 
 @tasks.loop(seconds=15)
 async def update_status_loop():
     """15秒ごとに現在再生中の曲を取得し、Botのステータス（アクティビティ）を更新する"""
+    global _last_video_id
     try:
         item = await fetch_nowplaying()
         if not item or not item.get("videoId"):
             # 再生中でなければステータスをクリア
-            await client.change_presence(activity=None)
+            if _last_video_id is not None:
+                await client.change_presence(activity=None)
+                _last_video_id = None
+            return
+
+        video_id = item["videoId"]
+        if video_id == _last_video_id:
+            # 同じ曲が流れている間はステータス更新をスキップ（レートリミット対策）
             return
 
         title = item.get("title", "（タイトル不明）")
@@ -350,8 +363,9 @@ async def update_status_loop():
             )
 
         await client.change_presence(activity=activity)
+        _last_video_id = video_id
     except Exception as e:
-        logging.getLogger(__name__).error(f"Failed to update status in loop: {e}")
+        logger.error(f"Failed to update status in loop: {e}")
 
 
 # SECTION - スラッシュコマンド定義
@@ -395,7 +409,7 @@ async def nowplaying_cmd(ctx: discord.ApplicationContext):
         embed.set_footer(text="Powered by NUCOSen")
         await ctx.respond(embed=embed)
     except Exception as e:
-        logging.getLogger(__name__).error(f"Failed to show nowplaying: {e}")
+        logger.error(f"Failed to show nowplaying: {e}")
         await ctx.respond("⚠️ 現在の再生情報の取得に失敗しました。", ephemeral=True)
 
 
@@ -421,7 +435,6 @@ async def queue_cmd(ctx: discord.ApplicationContext):
     }
     
     try:
-        import asyncio
         from requests import get
         query = '?h={\"\$orderby\": {\"priority\": -1, \"_id\": 1}}&max=10'
         resp = await asyncio.to_thread(get, url=queue_uri + query, headers=headers, timeout=10)
@@ -447,5 +460,5 @@ async def queue_cmd(ctx: discord.ApplicationContext):
         embed.set_footer(text=f"合計 {len(queues)} 件の待機曲があります。")
         await ctx.respond(embed=embed)
     except Exception as e:
-        logging.getLogger(__name__).error(f"Failed to fetch queue: {e}")
+        logger.error(f"Failed to fetch queue: {e}")
         await ctx.respond("⚠️ キュー情報の取得に失敗しました。", ephemeral=True)
