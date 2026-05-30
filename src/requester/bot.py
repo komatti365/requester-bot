@@ -328,7 +328,6 @@ async def update_status_loop():
             await client.change_presence(activity=None)
             return
 
-        video_id = item["videoId"]
         title = item.get("title", "（タイトル不明）")
         duration = item.get("duration", 0)
         remaining = item.get("remainingTime", 0)
